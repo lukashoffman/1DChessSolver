@@ -3,7 +3,7 @@ module Chess where
 
 import Data.List
 import Data.Maybe
-import Data.Set ( empty, insert, notMember, size, toList, Set )
+import Data.Set
 import qualified Data.Map as Map
 import Data.Map (Map)
 
@@ -174,7 +174,7 @@ checkLeft state tempPos tempColor moveList
 
 -- check if opposite king's location is a valid move
 kingInCheck :: GameState -> Bool
-kingInCheck state = (find(\moveList -> moveList == (getPos (getOppositeKing state))) (concat [potentialSquares state tempPieces | tempPieces <- activePieces state])) /= Nothing
+kingInCheck state = isJust (find(\moveList -> moveList == getPos (getOppositeKing state)) (concat [potentialSquares state tempPieces | tempPieces <- activePieces state]))
 
 swapColor :: GameState -> GameState
 swapColor (GameState c list) = GameState (nextColor c) list
@@ -183,20 +183,31 @@ getOppositeKing :: GameState -> PieceOnBoard
 getOppositeKing state = fromJust (find(\pieceList -> kind (piece pieceList) == King) (inactivePieces state))
 
 legalMoves :: GameState -> [GameState]
-legalMoves state = [move state tempPiece tempPos | tempPiece <- activePieces state, tempPos <- potentialSquares state tempPiece, kingInCheck(move state tempPiece tempPos) == False]
+legalMoves gs = concat [genGameStates gs x | x <- activePieces gs]
 
+--For a given piece, find all possible next states excluding ones putting king in check
+genGameStates :: GameState -> PieceOnBoard -> [GameState]
+genGameStates gs p = Prelude.filter (not . kingInCheck) [move gs p x | x <- potentialSquares gs p]
 --There are 1241 possible states from the initialState. The program took approximately 14 seconds
-possibleStates :: GameState -> Int
-possibleStates state = Data.Set.size (possibleStatesHelper [state] Data.Set.empty)
+--possibleStates :: GameState -> Int
+--possibleStates state = Data.Set.size (possibleStatesHelper [state] Data.Set.empty)
 
-getAllStates :: GameState -> [GameState]
-getAllStates state = listOfStringToSet (Data.Set.toList (possibleStatesHelper [state] Data.Set.empty))
+--getAllStates :: GameState -> [GameState]
+--getAllStates state = listOfStringToSet (Data.Set.toList (possibleStatesHelper [state] Data.Set.empty))
 --Possible states recursive function takes a list of GameStates initialized with the first gamestate, a set of visited gamestates, and an int to track the number of visited states
 
-possibleStatesHelper :: [GameState] -> Set String -> Set String
-possibleStatesHelper state set
- | Data.List.null state = set
- | otherwise = possibleStatesHelper (Data.List.drop 1 state ++ [tempState | tempState <- legalMoves (state !! 0), (Data.Set.notMember (stateToString tempState) set) == True]) (Data.Set.insert (stateToString (state !! 0)) set)
+--possibleStatesHelper :: [GameState] -> Set String -> Set String
+--possibleStatesHelper state set
+--  | Data.List.null state = set
+--  | otherwise = possibleStatesHelper (Data.List.drop 1 state ++ [tempState | tempState <- legalMoves (state !! 0), (Data.Set.notMember (stateToString tempState) set) == True]) (Data.Set.insert (stateToString (state !! 0)) set)
+dfs :: GameState -> Set GameState -> Set GameState
+dfs gs s =
+    if member gs s then
+        s
+    else Data.List.foldr dfs (Data.Set.insert gs s) (legalMoves gs)
+
+getAllStates :: GameState -> [GameState]
+getAllStates gs = toList (dfs gs empty)
 
 listOfStringToSet :: [String] -> [GameState]
 listOfStringToSet x = [ fromJust (stringToState y) | y <- x]
